@@ -1,0 +1,7 @@
+Exercise 2: Speed up system calls
+* Which other xv6 system call(s) could be made faster using this shared page? Explain how.
+Answer:
+These are the xv6 system calls that could be made faster using this shared page:
+1/ uptime(): We can make it faster by caching the tick count in usyscall and allow userspace to read it directly.
+2/ getppid(): We can make it faster by storing ppid in usyscall and access it directly in userspace.
+3/ getuid(): We can make it faster by storing them in usyscall and read them directly.

@@ -111,6 +111,7 @@ extern uint64 sys_recv(void);
 #ifdef LAB_PGTBL
 extern uint64 sys_pgpte(void);
 extern uint64 sys_kpgtbl(void);
+extern uint64 sys_ugetpid(void);
 #endif
 
 // An array mapping syscall numbers from syscall.h

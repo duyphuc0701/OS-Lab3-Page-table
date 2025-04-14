@@ -572,24 +572,25 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 
 
 #ifdef LAB_PGTBL
-void vmprint_walk(pagetable_t pagetable, int depth) {
+void vmprint_walk(pagetable_t pagetable, int depth, uint64 va) {
   for (int i = 0; i < 512; i++) {
     pte_t pte = pagetable[i];
 
     if (pte & PTE_V) {
       uint64 pa = PTE2PA(pte);
+      uint64 vaddr = va | ((uint64)i << ((2 - depth) * 9 + 12));
 
       // Print leading ".." for indentation
-      for (int j = 0; j < depth; j++) {
-        printf(".. ");
+      for (int j = 0; j <= depth; j++) {
+        printf(" ..");
       }
 
       // Print entry index, PTE, and physical address
-      printf("%d: pte %p pa %p\n", i, (void *)pte, (void *)pa);
+      printf("%p: pte %p pa %p\n", (void *)vaddr, (void *)pte, (void *)pa);
 
       // If this is a lower-level page table, recurse
       if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) {
-        vmprint_walk((pagetable_t)pa, depth + 1);
+        vmprint_walk((pagetable_t)pa, depth + 1, vaddr);
       }
     }
   }
@@ -599,7 +600,7 @@ void
 vmprint(pagetable_t pagetable) {
   // your code here
   printf("page table %p\n", pagetable);
-  vmprint_walk(pagetable, 0);
+  vmprint_walk(pagetable, 0, 0);
 }
 #endif
 

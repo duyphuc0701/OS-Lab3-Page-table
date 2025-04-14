@@ -10,6 +10,8 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
+void freerangeSuper(void *pa_start, void *pa_end);
+void superfree(void *);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
@@ -21,13 +23,15 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
+  struct run *freelistSuper;
 } kmem;
 
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  freerange(end, (void*)PHYSTOP - SUPERPGCOUNT * SUPERPGSIZE);
+  freerangeSuper((void*)PHYSTOP - SUPERPGCOUNT * SUPERPGSIZE, (void*)PHYSTOP);
 }
 
 void
@@ -39,6 +43,15 @@ freerange(void *pa_start, void *pa_end)
     kfree(p);
 }
 
+void freerangeSuper(void *pa_start, void *pa_end) {
+  char *pointer;
+  pointer = (char*)SUPERPGROUNDUP((uint64)pa_start);
+  while(pointer + SUPERPGSIZE <= (char*)pa_end) {
+    superfree(pointer);
+    pointer += SUPERPGSIZE;
+  }
+}
+
 // Free the page of physical memory pointed at by pa,
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
@@ -48,7 +61,7 @@ kfree(void *pa)
 {
   struct run *r;
 
-  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP - SUPERPGCOUNT * SUPERPGSIZE)
     panic("kfree");
 
   // Fill with junk to catch dangling refs.
@@ -59,6 +72,22 @@ kfree(void *pa)
   acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
+  release(&kmem.lock);
+}
+
+void superfree(void *pa) {
+  struct run *r;
+
+  if(((uint64)pa % SUPERPGSIZE) != 0 || (uint64)pa >= PHYSTOP || (uint64)pa < PHYSTOP - SUPERPGCOUNT * SUPERPGSIZE) {
+    panic("superfree");
+  }
+
+  memset(pa, 2, SUPERPGSIZE);
+  r = (struct run*)pa;
+
+  acquire(&kmem.lock);
+  r->next = kmem.freelistSuper;
+  kmem.freelistSuper = r;
   release(&kmem.lock);
 }
 
@@ -78,5 +107,20 @@ kalloc(void)
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
+  return (void*)r;
+}
+
+void* superalloc(void) {
+  struct run *r;
+  acquire(&kmem.lock);
+  r = kmem.freelistSuper;
+  if(r) {
+    kmem.freelistSuper = r->next;
+  }
+  release(&kmem.lock);
+
+  if(r) {
+    memset((char*)r, 6, SUPERPGSIZE);
+  }
   return (void*)r;
 }
